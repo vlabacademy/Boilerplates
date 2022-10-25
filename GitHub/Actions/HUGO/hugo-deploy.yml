@@ -1,0 +1,43 @@
+name: Deploy Hugo Static Website
+on: push
+
+# Setup environment variables that will be used in the pipeline
+env:
+  HUGO_VERSION: 0.101.0 # The HUGO version to be used
+  SSH_USER: username # The user account that will be used to connect to the remote server
+  WEB_SERVER: webserver.domain.local # The FQDN of the remote server
+  WEB_SERVER_FOLDER: /htdocs/ # The path to HTDOCS on the web server
+  IMPORT_PUBLIC_KEYS: ${{ false }} # Set to true if you wish to override the known_hosts with the public key of the WEB_SERVER
+
+jobs:
+  build:
+    name: Build and Deploy
+    runs-on: ubuntu-latest # For self hosted runner, set to 'self-hosted'
+    steps:
+      - name: 🛒 Checkout Code
+        uses: actions/checkout@v3
+
+      - name: ✨ Setup Hugo
+        run: |
+          sudo rm -rf ~/hugo
+          sudo rm /usr/local/bin/hugo
+          mkdir ~/hugo
+          cd ~/hugo
+          curl -L "https://github.com/gohugoio/hugo/releases/download/v${HUGO_VERSION}/hugo_${HUGO_VERSION}_Linux-64bit.tar.gz" --output hugo.tar.gz
+          tar -xvzf hugo.tar.gz
+          sudo mv hugo /usr/local/bin
+
+      - name: 🛠️ Build Website
+        run: hugo -d public
+
+      - if: ${{ env.IMPORT_PUBLIC_KEYS == 'true' }} 
+        name: 🔑 Import Webserver's Public Keys
+        run: ssh-keyscan ${WEB_SERVER} > ~/.ssh/known_hosts
+
+      - name: 🔑 Install SSH Private Key
+        run: |
+          install -m 600 -D /dev/null ~/.ssh/id_rsa
+          echo "${{ secrets.PRIVATE_SSH_KEY }}" > ~/.ssh/id_rsa
+
+      - name: 🚀 Deploy Website
+        run: rsync -v --archive --delete --stats -e ssh 'public/' ${SSH_USER}@${WEB_SERVER}:${WEB_SERVER_FOLDER}
