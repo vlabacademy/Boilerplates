@@ -6,7 +6,7 @@ on: push
 
 # Setup environment variables that will be used in the pipeline
 env:
-  DOCKER_FILE: Dockerfile # The relative path to the dockerfile to be used. Ex: projectname/Dockerfile
+  DOCKER_FILE: CloudTrainingDemo/Dockerfile # The relative path to the dockerfile to be used. Ex: projectname/Dockerfile
   CONTAINER_REGISTRY: ghcr.io # The container registry to upload the created container
   CONTAINER_REGISTRY_USERNAME: ${{ github.actor }} # The user with appropriate rights on registry
   CONTAINER_REGISTRY_PASSWORD: ${{ secrets.CONTAINER_REGISTRY_PASSWORD }} # The password of the user with appropriate rights on registry
@@ -21,16 +21,20 @@ jobs:
         id: repository_name
         uses: ASzc/change-string-case-action@v2
         with:
-          string: ${{ github.repository }}  
+          string: ${{ github.repository }}
 
       - name: Checkout code
         uses: actions/checkout@v2
 
       - name: Build container image
-        run: docker build . --file ${DOCKER_FILE} --tag ${CONTAINER_REGISTRY}/${{ steps.repository_name.outputs.lowercase }}:latest --tag ${CONTAINER_REGISTRY}/${{ steps.repository_name.outputs.lowercase }}:${{ github.run_number }}
+        run: |
+          docker build . --file ${DOCKER_FILE} \
+          --label org.opencontainers.image.source=https://github.com/${{ steps.repository_name.outputs.lowercase }} \
+          --tag ${CONTAINER_REGISTRY}/${{ steps.repository_name.outputs.lowercase }}:latest \
+          --tag ${CONTAINER_REGISTRY}/${{ steps.repository_name.outputs.lowercase }}:${{ github.run_number }}
 
       - name: Login to the container registry
-        run: echo "${CONTAINER_REGISTRY_PASSWORD}" | docker login ${CONTAINER_REGISTRY} -u ${CONTAINER_REGISTRY_USERNAME} --password-stdin    
+        run: echo "${CONTAINER_REGISTRY_PASSWORD}" | docker login ${CONTAINER_REGISTRY} -u ${CONTAINER_REGISTRY_USERNAME} --password-stdin
 
       - name: Push container image to container registry
         run: docker push --all-tags ${CONTAINER_REGISTRY}/${{ steps.repository_name.outputs.lowercase }}
